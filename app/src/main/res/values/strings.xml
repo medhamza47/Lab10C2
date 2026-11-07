@@ -1,0 +1,26 @@
+<resources>
+    <string name="app_name">Banque REST Client</string>
+    <string name="json">JSON</string>
+    <string name="xml">XML</string>
+    <string name="add_compte">Ajouter un compte</string>
+    <string name="edit_compte">Modifier un compte</string>
+    <string name="solde">Solde</string>
+    <string name="type">Type</string>
+    <string name="courant">COURANT</string>
+    <string name="epargne">EPARGNE</string>
+    <string name="supprimer">Supprimer</string>
+    <string name="modifier">Modifier</string>
+    <string name="ajouter">Ajouter</string>
+    <string name="annuler">Annuler</string>
+    <string name="confirmation">Confirmation</string>
+    <string name="confirm_delete">Voulez-vous vraiment supprimer ce compte ?</string>
+    <string name="oui">Oui</string>
+    <string name="non">Non</string>
+    <string name="compte_ajoute">Compte ajouté avec succès</string>
+    <string name="compte_modifie">Compte modifié avec succès</string>
+    <string name="compte_supprime">Compte supprimé avec succès</string>
+    <string name="erreur_ajout">Erreur lors de l\'ajout</string>
+    <string name="erreur_modif">Erreur lors de la modification</string>
+    <string name="erreur_suppr">Erreur lors de la suppression</string>
+</resources>
+

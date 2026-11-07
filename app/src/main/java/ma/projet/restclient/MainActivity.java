@@ -1,0 +1,260 @@
+package ma.projet.restclient;
+
+import android.content.DialogInterface;
+import android.os.Bundle;
+import android.util.Log;
+import android.view.View;
+import android.widget.EditText;
+import android.widget.RadioGroup;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import ma.projet.restclient.adapter.CompteAdapter;
+import ma.projet.restclient.entities.Compte;
+import ma.projet.restclient.repository.CompteRepository;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.List;
+import java.util.Locale;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
+public class MainActivity extends AppCompatActivity implements CompteAdapter.OnDeleteClickListener, CompteAdapter.OnUpdateClickListener {
+    private static final String TAG = "MainActivity";
+    private RecyclerView recyclerView;
+    private CompteAdapter adapter;
+    private RadioGroup formatGroup;
+    private FloatingActionButton addbtn;
+    private String currentFormat = "JSON";
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        initViews();
+        setupRecyclerView();
+        setupFormatSelection();
+        setupAddButton();
+
+        loadData(currentFormat);
+    }
+
+    private void initViews() {
+        recyclerView = findViewById(R.id.recyclerView);
+        formatGroup = findViewById(R.id.formatGroup);
+        addbtn = findViewById(R.id.fabAdd);
+    }
+
+    private void setupRecyclerView() {
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        adapter = new CompteAdapter(this, this);
+        recyclerView.setAdapter(adapter);
+    }
+
+    private void setupFormatSelection() {
+        formatGroup.setOnCheckedChangeListener((group, checkedId) -> {
+            currentFormat = (checkedId == R.id.radioJson) ? "JSON" : "XML";
+            loadData(currentFormat);
+        });
+    }
+
+    private void setupAddButton() {
+        addbtn.setOnClickListener(v -> showAddCompteDialog());
+    }
+
+    private void showAddCompteDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_add_compte, null);
+
+        EditText etSolde = dialogView.findViewById(R.id.etSolde);
+        RadioGroup typeGroup = dialogView.findViewById(R.id.typeGroup);
+
+        builder.setView(dialogView)
+                .setTitle(R.string.add_compte)
+                .setPositiveButton(R.string.ajouter, (dialog, which) -> {
+                    String soldeText = etSolde.getText().toString().trim();
+                    if (soldeText.isEmpty()) {
+                        showToast("Veuillez saisir un solde valide");
+                        return;
+                    }
+
+                    try {
+                        double solde = Double.parseDouble(soldeText);
+                        String type = (typeGroup.getCheckedRadioButtonId() == R.id.radioCourant)
+                                ? "COURANT" : "EPARGNE";
+                        String formattedDate = getCurrentDateFormatted();
+                        Compte compte = new Compte(null, solde, type, formattedDate);
+                        addCompte(compte);
+                    } catch (NumberFormatException e) {
+                        showToast("Format de solde invalide");
+                    }
+                })
+                .setNegativeButton(R.string.annuler, null);
+
+        AlertDialog dialog = builder.create();
+        dialog.show();
+    }
+
+    private String getCurrentDateFormatted() {
+        Calendar calendar = Calendar.getInstance();
+        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+        return formatter.format(calendar.getTime());
+    }
+
+    private void addCompte(Compte compte) {
+        CompteRepository compteRepository = new CompteRepository("JSON");
+        compteRepository.addCompte(compte, new Callback<Compte>() {
+            @Override
+            public void onResponse(Call<Compte> call, Response<Compte> response) {
+                if (response.isSuccessful()) {
+                    showToast(getString(R.string.compte_ajoute));
+                    loadData(currentFormat);
+                } else {
+                    showToast(getString(R.string.erreur_ajout) + " (code: " + response.code() + ")");
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Compte> call, Throwable t) {
+                Log.e(TAG, "Erreur ajout", t);
+                showToast(getString(R.string.erreur_ajout));
+            }
+        });
+    }
+
+    private void loadData(String format) {
+        CompteRepository compteRepository = new CompteRepository(format);
+        compteRepository.getAllCompte(new Callback<List<Compte>>() {
+            @Override
+            public void onResponse(Call<List<Compte>> call, Response<List<Compte>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    List<Compte> comptes = response.body();
+                    runOnUiThread(() -> adapter.updateData(comptes));
+                } else {
+                    showToast("Erreur de chargement: " + response.code());
+                }
+            }
+
+            @Override
+            public void onFailure(Call<List<Compte>> call, Throwable t) {
+                Log.e(TAG, "Erreur chargement (" + format + ")", t);
+                showToast("Erreur: " + t.getMessage());
+            }
+        });
+    }
+
+    @Override
+    public void onUpdateClick(Compte compte) {
+        showUpdateCompteDialog(compte);
+    }
+
+    private void showUpdateCompteDialog(Compte compte) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_add_compte, null);
+
+        EditText etSolde = dialogView.findViewById(R.id.etSolde);
+        RadioGroup typeGroup = dialogView.findViewById(R.id.typeGroup);
+
+        etSolde.setText(String.valueOf(compte.getSolde()));
+        if (compte.getType() != null && compte.getType().equalsIgnoreCase("COURANT")) {
+            typeGroup.check(R.id.radioCourant);
+        } else if (compte.getType() != null && compte.getType().equalsIgnoreCase("EPARGNE")) {
+            typeGroup.check(R.id.radioEpargne);
+        }
+
+        builder.setView(dialogView)
+                .setTitle(R.string.edit_compte)
+                .setPositiveButton(R.string.modifier, (dialog, which) -> {
+                    String soldeText = etSolde.getText().toString().trim();
+                    if (soldeText.isEmpty()) {
+                        showToast("Veuillez saisir un solde valide");
+                        return;
+                    }
+
+                    try {
+                        double solde = Double.parseDouble(soldeText);
+                        String type = (typeGroup.getCheckedRadioButtonId() == R.id.radioCourant)
+                                ? "COURANT" : "EPARGNE";
+                        compte.setSolde(solde);
+                        compte.setType(type);
+                        updateCompte(compte);
+                    } catch (NumberFormatException e) {
+                        showToast("Format de solde invalide");
+                    }
+                })
+                .setNegativeButton(R.string.annuler, null);
+
+        AlertDialog dialog = builder.create();
+        dialog.show();
+    }
+
+    private void updateCompte(Compte compte) {
+        CompteRepository compteRepository = new CompteRepository("JSON");
+        compteRepository.updateCompte(compte.getId(), compte, new Callback<Compte>() {
+            @Override
+            public void onResponse(Call<Compte> call, Response<Compte> response) {
+                if (response.isSuccessful()) {
+                    showToast(getString(R.string.compte_modifie));
+                    loadData(currentFormat);
+                } else {
+                    showToast(getString(R.string.erreur_modif) + " (code: " + response.code() + ")");
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Compte> call, Throwable t) {
+                Log.e(TAG, "Erreur modification", t);
+                showToast(getString(R.string.erreur_modif));
+            }
+        });
+    }
+
+    @Override
+    public void onDeleteClick(Compte compte) {
+        showDeleteConfirmationDialog(compte);
+    }
+
+    private void showDeleteConfirmationDialog(Compte compte) {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.confirmation)
+                .setMessage(R.string.confirm_delete)
+                .setPositiveButton(R.string.oui, (dialog, which) -> deleteCompte(compte))
+                .setNegativeButton(R.string.non, null)
+                .show();
+    }
+
+    private void deleteCompte(Compte compte) {
+        CompteRepository compteRepository = new CompteRepository("JSON");
+        compteRepository.deleteCompte(compte.getId(), new Callback<Void>() {
+            @Override
+            public void onResponse(Call<Void> call, Response<Void> response) {
+                if (response.isSuccessful()) {
+                    showToast(getString(R.string.compte_supprime));
+                    loadData(currentFormat);
+                } else {
+                    showToast(getString(R.string.erreur_suppr) + " (code: " + response.code() + ")");
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Void> call, Throwable t) {
+                Log.e(TAG, "Erreur suppression", t);
+                showToast(getString(R.string.erreur_suppr));
+            }
+        });
+    }
+
+    private void showToast(String message) {
+        runOnUiThread(() -> Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show());
+    }
+}
+
